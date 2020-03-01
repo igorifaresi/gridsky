@@ -19,18 +19,24 @@ enum ComponentTypes {
     BLANK_COMP,
     BLOCK_COMP,
     PLAYER_COMP,
+    FOE_COMP,
 };
 
 typedef enum ComponentTypes ComponentType;
 
 typedef void (*UpdateFunction)(int, int, char);
 
+typedef struct FoeData {
+    unsigned char life;
+}FoeData;
+
 typedef struct Component {
     ComponentType type;
     size_t last_update_tick;
     SDL_Texture* sprite;
-    // union {
-    // }
+    union {
+        FoeData foe_data;
+    };
     UpdateFunction update;
 }Component;
 
@@ -40,6 +46,7 @@ enum InputTypes {
     DOWN_INPUT,
     LEFT_INPUT,
     RIGHT_INPUT,
+    SKIP_INPUT,
 };
 
 typedef enum InputTypes InputType;
@@ -60,6 +67,7 @@ struct {
 
 
 SDL_Texture* sprite_assets[3];
+
 
 //-----------------------------------------------------------------------------
 
@@ -113,13 +121,6 @@ void updateGame(SDL_Renderer* renderer, Camera* camera, char season, size_t actu
                                  - ((h_block_qnt * block_size) / 2);
     int block_offset = h_block_qnt / 2; //wrong calculus
 
-
-    //printf("block_size            -> %d\n", block_size);
-    //printf("h_block_qnt           -> %d\n", h_block_qnt);
-    //printf("init_render_block_pos -> %d\n", init_render_block_pos);
-    //printf("block_offset          -> %d\n", block_offset);
-
-
     assert(SDL_RenderClear(renderer) != -1);
     for (int y = 0; y < camera->v_block_qnt; y++) {
         int render_pos_x = init_render_block_pos;
@@ -127,7 +128,6 @@ void updateGame(SDL_Renderer* renderer, Camera* camera, char season, size_t actu
         for (int x = 0; x < h_block_qnt + camera->v_block_qnt; x++) {
             int grid_pos_x = camera->x + x - block_offset;
             int grid_pos_y = camera->y - y;
-            //printf("[log] grid iterator at %d, %d\n", grid_pos_x, grid_pos_y);
             if ((grid_pos_x >= 0 && grid_pos_x < 1024)
              && (grid_pos_y >= 0 && grid_pos_y < 1024)) {
                 SDL_Texture* back = background[grid_pos_y][grid_pos_x];
@@ -139,15 +139,15 @@ void updateGame(SDL_Renderer* renderer, Camera* camera, char season, size_t actu
                 }
                 Component* it = &grid[grid_pos_y][grid_pos_x];
                 if (it->type != BLANK_COMP) {
-                    printf("[log] rendering comp\n");
                     renderCell(renderer, it->sprite, render_pos_y
                                                    , render_pos_x
                                                    , block_size);
                     if (it->type != BLOCK_COMP && it->type != PLAYER_COMP
                     && update_entities && it->last_update_tick != actual_tick) {
+                        it->last_update_tick = actual_tick;
                         it->update(grid_pos_x, grid_pos_y, season);
                         updateGame(renderer, camera, season, actual_tick, false);
-                        it->last_update_tick = actual_tick;
+                        updateGame(renderer, camera, season, actual_tick, false);
                     }
                 }
             }
@@ -181,9 +181,25 @@ bool updatePlayer(unsigned* pos_x, unsigned* pos_y, char season, InputType input
     default:
         break;
     }
-    if ((next_x >= 0 && next_x < 1024)
+    if ((next_x != *pos_x || next_y != *pos_y)
+    &&  (next_x >= 0 && next_x < 1024)
     &&  (next_y >= 0 && next_y < 1024)) {
-        if (grid[next_y][next_x].type == BLANK_COMP) {
+        bool can_move = (grid[next_y][next_x].type == BLANK_COMP);
+        if (!can_move) {
+            switch (grid[next_y][next_x].type) {
+            case FOE_COMP:
+                grid[next_y][next_x].foe_data.life -= 2;
+                if (grid[next_y][next_x].foe_data.life <= 0) {
+                    grid[next_y][next_x].type = BLANK_COMP;
+                    can_move = true;
+                }
+                printf("[log] give 2 damage on %d, %d foe\n", next_x, next_y);
+                break;
+            default:
+                break;
+            }
+        }
+        if (can_move) {
             printf("[log] moving to %d, %d\n", next_x, next_y);
             grid[next_y][next_x] = grid[*pos_y][*pos_x];
             grid[*pos_y][*pos_x].type = BLANK_COMP;
@@ -201,6 +217,25 @@ bool updatePlayer(unsigned* pos_x, unsigned* pos_y, char season, InputType input
 
 //-----------------------------------------------------------------------------
 
+void dummyFoe(int bar, int baz, char foobar)
+{
+    printf("[log] dummy foe updated\n");
+}
+
+void initFoe(Component* component, UpdateFunction function, SDL_Texture* sprite,
+             unsigned char life)
+{
+    component->type = FOE_COMP;
+    component->last_update_tick = -1;
+    component->update = function;
+    component->sprite = sprite;
+    component->foe_data.life = life;
+}
+
+//-----------------------------------------------------------------------------
+
+#include "q-learning.h"
+
 int main()
 {
     int return_status = 0;
@@ -213,23 +248,17 @@ int main()
                                                    , 0);
     SDL_Renderer* renderer = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
 
-    sprite_assets[0] = IMG_LoadTexture(renderer, "greatsword.png");
-    sprite_assets[1] = IMG_LoadTexture(renderer, "fftatics_icons.png");
+    sprite_assets[0] = IMG_LoadTexture(renderer, "goomba.png");
+    sprite_assets[1] = IMG_LoadTexture(renderer, "mario.png");
+    sprite_assets[2] = IMG_LoadTexture(renderer, "blue.png");
 
-    main_camera.x = 0;
-    main_camera.y = 0;
-    main_camera.v_block_qnt = 8;
-    player_grid_pos_x = 0;
-    player_grid_pos_y = 0;
-
-    fillBackground(sprite_assets[0]);
+    fillBackground(sprite_assets[2]);
     eraseGrid();
-    Component c;
-    c.type = PLAYER_COMP;
-    c.last_update_tick = 0;
-    c.sprite = sprite_assets[1];
-    c.update = NULL;
-    grid[0][0] = c;
+
+    initQLearningDemo();
+
+    int tick_count = 0;
+    updateGame(renderer, &main_camera, 0, 0, false);
     for (;;) {
         InputType input = NOT_INPUT;
         SDL_Event e;
@@ -260,11 +289,15 @@ int main()
                 input = LEFT_INPUT;
             else if (e.type == SDL_KEYUP && e.key.keysym.sym == SDLK_d)
                 input = RIGHT_INPUT;
+            else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_p)
+                input = SKIP_INPUT;
 		}
         if (input != NOT_INPUT) {
-            if (updatePlayer(&player_grid_pos_x, &player_grid_pos_y, 0, input)) {
-                updateGame(renderer, &main_camera, 0, 0, false);
-                updateGame(renderer, &main_camera, 0, 0, true);
+            if (input == SKIP_INPUT
+            ||  updatePlayer(&player_grid_pos_x, &player_grid_pos_y, 0, input)) {
+                updateGame(renderer, &main_camera, 0, tick_count, false);
+                updateGame(renderer, &main_camera, 0, tick_count, true);
+                tick_count++;
             }
         }
     }
