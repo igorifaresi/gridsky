@@ -84,6 +84,7 @@ void qLearningFoe(int pos_x, int pos_y, char season)
         }
     }
     grid[next_y][next_x] = grid[pos_y][pos_x];
+    printf("[log] cleaning %d, %d\n", pos_y, pos_x);
     grid[pos_y][pos_x].type = BLANK_COMP;
 }
 

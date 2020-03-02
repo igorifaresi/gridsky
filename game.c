@@ -146,7 +146,7 @@ void updateGame(SDL_Renderer* renderer, Camera* camera, char season, size_t actu
                     && update_entities && it->last_update_tick != actual_tick) {
                         it->last_update_tick = actual_tick;
                         it->update(grid_pos_x, grid_pos_y, season);
-                        updateGame(renderer, camera, season, actual_tick, false);
+                        assert(SDL_RenderClear(renderer) != -1);
                         updateGame(renderer, camera, season, actual_tick, false);
                     }
                 }
@@ -296,8 +296,8 @@ int main()
         if (input != NOT_INPUT) {
             if (input == SKIP_INPUT
             ||  updatePlayer(&player_grid_pos_x, &player_grid_pos_y, 0, input)) {
-                updateGame(renderer, &main_camera, 0, tick_count, false);
                 updateGame(renderer, &main_camera, 0, tick_count, true);
+                updateGame(renderer, &main_camera, 0, tick_count, false);
                 tick_count++;
             }
         }
