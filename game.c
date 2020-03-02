@@ -262,11 +262,12 @@ int main()
     for (;;) {
         InputType input = NOT_INPUT;
         SDL_Event e;
-		if ( SDL_PollEvent(&e) ) {
-			if (e.type == SDL_QUIT)
-				break;
-			else if (e.type == SDL_KEYUP && e.key.keysym.sym == SDLK_ESCAPE)
-				break;
+        if ( SDL_PollEvent(&e) ) {
+            if (e.type == SDL_QUIT)
+                break;
+            else if (e.type == SDL_KEYUP && e.key.keysym.sym == SDLK_ESCAPE)
+                break;
+                
             else if (e.type == SDL_KEYUP && e.key.keysym.sym == SDLK_i) {
                 main_camera.y++;
                 updateGame(renderer, &main_camera, 0, 0, false);
@@ -291,7 +292,7 @@ int main()
                 input = RIGHT_INPUT;
             else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_p)
                 input = SKIP_INPUT;
-		}
+        }
         if (input != NOT_INPUT) {
             if (input == SKIP_INPUT
             ||  updatePlayer(&player_grid_pos_x, &player_grid_pos_y, 0, input)) {
